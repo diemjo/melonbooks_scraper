@@ -5,8 +5,7 @@ in the future, other websites than melonbooks could be supported too.
 requires a running db, tables will be created on the fly.
 work in progress.
 
-Usage: melonbooks-scraper <--daemon|--load-new|--refresh|--add-artist <ADD_ARTIST>|--remove-artist <REMOVE_ARTIST>>
-
+```
 Usage: melonbooks-scraper [OPTIONS]
 
 Options:
@@ -18,5 +17,6 @@ Options:
       --remove-artist <REMOVE_ARTIST>  remove artist and their products from the db
       --site <SITE>                    required with 'add-artist' and 'remove-artist', specify from which site the products should be scraped from (only melonbooks supported for now)
   -h, --help                           Print help information
+```
 
 web interface not included in this project. (good luck)
