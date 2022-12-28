@@ -6,7 +6,7 @@ pub enum Error {
     IOError(#[from] std::io::Error),
 
     #[error("Failed db statement: {0}")]
-    DBError(#[from] mysql::Error),
+    DBError(#[from] rusqlite::Error),
 
     #[error("Failed web request: {0}")]
     WebError(#[from] reqwest::Error),

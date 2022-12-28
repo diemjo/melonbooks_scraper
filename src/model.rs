@@ -2,7 +2,10 @@ use core::fmt;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 use chrono::{NaiveDate};
-use crate::common::error::Error;
+use rusqlite::Error::FromSqlConversionFailure;
+use rusqlite::Row;
+use rusqlite::types::Type;
+use crate::common::error::{Error};
 use crate::model::Availability::{Available, NotAvailable, Preorder};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -21,7 +24,7 @@ impl fmt::Display for Availability {
 impl FromStr for Availability {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             "Available" => Ok(Available),
             "Preorder" => Ok(Preorder),
@@ -39,6 +42,19 @@ pub struct Product {
     pub img_url: String,
     pub date_added: NaiveDate, //utc
     pub availability: Availability,
+}
+
+impl Product {
+    pub(crate) fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Product::new(
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            NaiveDate::from_str(row.get::<usize, String>(4)?.as_str()).unwrap(),
+            Availability::from_str(row.get::<usize, String>(5)?.as_str()).or_else(|e| Err(FromSqlConversionFailure(0, Type::Text, Box::new(e))))?
+        ))
+    }
 }
 
 impl Product {

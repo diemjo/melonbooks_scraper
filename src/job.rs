@@ -1,6 +1,4 @@
-use std::io::{stdout, Write};
-use crossterm::{cursor, ExecutableCommand, terminal};use std::thread::sleep;
-use crossterm::terminal::ClearType;
+use std::thread::sleep;
 use crate::db::MelonDB;
 use crate::web::melonbooks_scraper::MelonbooksScraper;
 use crate::web::WebScraper;
@@ -20,52 +18,38 @@ pub(crate) fn default_job() -> Result<()> {
 }
 
 pub(crate) fn load_products(also_unavailable: bool) -> Result<()> {
-    let mut stdout = stdout();
-    writeln!(stdout, "[Job] Loading new products")?;
+    println!("[Job] Loading new products");
     for ws in get_webscrapers()? {
         load_products_ws(ws.as_ref(), also_unavailable)?;
     }
-    stdout.execute(cursor::MoveUp(1))?;
-    stdout.execute(terminal::Clear(ClearType::FromCursorDown))?;
-    writeln!(stdout, "[Job] Loading new products done!")?;
+    println!("[Job] Loading new products done!");
     Ok(())
 }
 
 fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result<()> {
-    let mut stdout = stdout();
     let site = ws.get_site_name();
-    writeln!(stdout, "[Site] Loading new products from {}:", site)?;
+    println!("[Site] Loading new products from {}:", site);
     let mut db = MelonDB::new()?;
     let artists = db.get_artists(site)?;
     for (aidx, artist) in artists.iter().enumerate() {
-        writeln!(stdout, "[Artist] {}/{} Loading products for artist {}:", aidx+1, artists.len(), artist)?;
+        println!("[Artist] {}/{} Loading products for artist {}:", aidx+1, artists.len(), artist);
         let urls = ws.get_urls(artist.as_str(), also_unavailable)?;
         let new_urls : Vec<&String>= urls.iter().filter(|u| !db.contains_product(u.as_str()).unwrap_or(false) && !db.is_skip_product(u.as_str()).unwrap_or(false)).collect();
-        stdout.execute(cursor::MoveUp(1))?;
-        stdout.execute(terminal::Clear(ClearType::FromCursorDown))?;
-        writeln!(stdout, "[Search] Found {} total products, {} new", urls.len(), new_urls.len())?;
-        writeln!(stdout, "")?;
+        println!("[Search] Found {} total products, {} new", urls.len(), new_urls.len());
         for (pidx, &url) in new_urls.iter().enumerate() {
             let product = ws.get_product(artist.as_str(), url.as_str())?;
-            stdout.execute(cursor::MoveUp(1))?;
-            stdout.execute(terminal::Clear(ClearType::FromCursorDown))?;
             if product.is_some() {
                 let product = product.unwrap();
-                writeln!(stdout, "[Product] {}/{} Adding {} : {}", pidx+1, new_urls.len(), &product.url, &product.title)?;
+                println!("[Product] {}/{} Adding {} : {}", pidx+1, new_urls.len(), &product.url, &product.title);
                 db.store_products(&vec![product], site)?;
             } else {
-                writeln!(stdout, "[Product] {}/{} Skipping {}", pidx+1, new_urls.len(), &url)?;
-                stdout.flush()?;
+                println!("[Product] {}/{} Skipping {}", pidx+1, new_urls.len(), &url);
                 db.skip_product(url)?;
             }
             sleep(core::time::Duration::from_millis(500));
         }
         sleep(core::time::Duration::from_millis(2000));
-        stdout.execute(cursor::MoveUp(3))?;
-        stdout.execute(terminal::Clear(ClearType::FromCursorDown))?;
     }
-    stdout.execute(cursor::MoveUp(1))?;
-    stdout.execute(terminal::Clear(ClearType::FromCursorDown))?;
     Ok(())
 }
 

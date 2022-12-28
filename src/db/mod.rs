@@ -1,81 +1,108 @@
-use std::str::FromStr;
-use chrono::prelude::*;
+use rusqlite::{Connection, named_params};
 use crate::common::error::{Result};
-use mysql::{params, Pool, PooledConn};
-use mysql::prelude::*;
 use crate::CONFIGURATION;
 use crate::db::sql::*;
-use crate::model::{Availability, Product};
+use crate::model::{Product};
 
 mod sql;
 
 pub struct  MelonDB {
-    conn: PooledConn
+    conn: Connection
 }
 
 impl MelonDB {
     pub(crate) fn new() -> Result<Self> {
-        let username = &CONFIGURATION.mysql_username;
-        let password = &CONFIGURATION.mysql_password;
-        let host = &CONFIGURATION.mysql_host;
-        let port = &CONFIGURATION.mysql_port;
-        let db = &CONFIGURATION.mysql_db;
-        let mut conn = open(format!("mysql://{username}:{password}@{host}:{port}/{db}").as_str())?;
+        let db_path = &CONFIGURATION.db_path;
+        let mut conn = Connection::open(db_path)?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
         create_tables(&mut conn)?;
         Ok(MelonDB { conn })
     }
 
     #[cfg(test)]
     pub(crate) fn new_local() -> Result<Self> {
-        let username = &CONFIGURATION.mysql_username;
-        let password = &CONFIGURATION.mysql_password;
-        let host = &CONFIGURATION.mysql_host;
-        let db = &CONFIGURATION.mysql_db;
-        let mut conn = open(format!("mysql://{username}:{password}@{host}:3306/{db}").as_str())?;
+        let db_path = "./melonbooks.db";
+        let mut conn = Connection::open(db_path)?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
         create_tables(&mut conn)?;
         Ok(MelonDB { conn })
     }
 
     // artist --------------------------------------------------------------------------------------
-    pub(crate) fn get_artists(&mut self, site: &str) -> Result<Vec<String>> {
-        let res: Vec<String> = self.conn.exec(SELECT_ARTISTS, params! {site})?;
-        Ok(res)
+    pub(crate) fn get_artists(&self, site: &str) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(SELECT_ARTISTS)?;
+        let rows:  Vec<std::result::Result<String, rusqlite::Error>> = stmt.query_map(named_params! {
+            ":site": site
+        }, |row|
+            row.get::<usize, String>(0)
+        )?.collect();
+        let res: std::result::Result<Vec<String>, rusqlite::Error> = rows.into_iter().collect();
+        Ok(res?)
     }
 
     pub(crate) fn store_artists(&mut self, artists: &Vec<String>, site: &str) -> Result<()> {
-        self.conn.exec_batch(INSERT_ARTIST, artists.iter().map(|artist|
-            params! {
-                "name" => artist,
-                "site" => site
+        let transaction = self.conn.transaction()?;
+        {
+            let mut stmt = transaction.prepare(INSERT_ARTIST)?;
+            for artist in artists {
+                stmt.insert(named_params! {
+                    ":name": artist,
+                    ":site": site
+                })?;
             }
-        ))?;
+        }
+        transaction.commit()?;
         Ok(())
     }
 
     pub(crate) fn remove_artist(&mut self, artist: &str, site: &str) -> Result<()> {
-        self.conn.exec_drop(REMOVE_ARTIST, params! {
-                "name" => artist,
-                "site" => site
+        let mut stmt = self.conn.prepare(REMOVE_ARTIST)?;
+        stmt.execute(named_params! {
+            ":name": artist,
+            ":site": site
         })?;
         Ok(())
     }
 
     // products ------------------------------------------------------------------------------------
-    pub(crate) fn contains_product(&mut self, url: &str) -> Result<bool> {
-        let res: Vec<u32> = self.conn.exec(SELECT_PRODUCT, params! {"url" => url})?;
-        Ok(!res.is_empty())
+    pub(crate) fn contains_product(&self, url: &str) -> Result<bool> {
+        let mut stmt = self.conn.prepare(SELECT_PRODUCT)?;
+        let res = stmt.exists(named_params! {
+            ":url": url
+        })?;
+        Ok(res)
     }
 
-    pub(crate) fn get_products(&mut self, site: &str) -> Result<Vec<Product>> {
-        let res: Vec<(String, String, String, String, String, String)> = self.conn.exec(SELECT_PRODUCTS, params! { "site" => site })?;
-        let products = res.into_iter().map(|(url, title, artist, site, date_added, availability)|
-            Product::new(url, title, artist, site, NaiveDate::from_str(&date_added).unwrap(), Availability::from_str(&availability).unwrap())
-        ).collect::<Vec<Product>>();
-        Ok(products)
+    pub(crate) fn get_products(&self, site: &str) -> Result<Vec<Product>> {
+        let mut stmt = self.conn.prepare(SELECT_PRODUCTS)?;
+        let rows: Vec<std::result::Result<Product, rusqlite::Error>> = stmt.query_map(named_params! {
+            ":site": site
+        }, |row|
+            Product::from_row(row)
+        )?.collect();
+        let res: std::result::Result<Vec<Product>, rusqlite::Error> = rows.into_iter().collect();
+        Ok(res?)
     }
 
     pub(crate) fn store_products(&mut self, products: &Vec<Product>, site: &str) -> Result<()> {
-        self.conn.exec_batch(INSERT_PRODUCT, products.iter().map(|p|
+        let transaction = self.conn.transaction()?;
+        {
+            let mut stmt = transaction.prepare(INSERT_PRODUCT)?;
+            for product in products {
+                stmt.insert(named_params! {
+                    ":url": product.url,
+                    ":title": product.title,
+                    ":artist": product.artist,
+                    ":site": site,
+                    ":img_url": product.img_url,
+                    ":date_added": product.date_added.to_string(),
+                    ":availability": product.availability.to_string()
+                })?;
+            }
+        }
+        transaction.commit()?;
+        Ok(())
+        /*self.conn.exec_batch(INSERT_PRODUCT, products.iter().map(|p|
             params! {
                 "url" => &p.url,
                 "title" => &p.title,
@@ -86,16 +113,21 @@ impl MelonDB {
                 "availability" => &p.availability.to_string(),
             }
         ))?;
-        Ok(())
+        Ok(())*/
     }
 
-    /*pub(crate) fn remove_product(&mut self, url: &str) -> Result<()> {
-        self.conn.exec_drop(REMOVE_PRODUCT, params! { "url" => url })?;
-        Ok(())
-    }*/
-
     pub(crate) fn update_product(&mut self, product: &Product) -> Result<()> {
-        self.conn.exec_drop(UPDATE_PRODUCT, params! {
+        let mut stmt = self.conn.prepare(UPDATE_PRODUCT)?;
+        stmt.execute(named_params! {
+             ":url": product.url,
+            ":title": product.title,
+            ":artist": product.artist,
+            ":img_url": product.img_url,
+            ":date_added": product.date_added.to_string(),
+            ":availability": product.availability.to_string()
+        })?;
+        Ok(())
+        /*self.conn.exec_drop(UPDATE_PRODUCT, params! {
             "url" => &product.url,
             "title" => &product.title,
             "artist" => &product.artist,
@@ -103,32 +135,40 @@ impl MelonDB {
             "date_added" => &product.date_added.to_string(),
             "availability" => &product.availability.to_string(),
         })?;
+        Ok(())*/
+    }
+
+    #[cfg(test)]
+    pub(crate) fn remove_product(&mut self, url: &str) -> Result<()> {
+        let mut stmt = self.conn.prepare(REMOVE_PRODUCT)?;
+        stmt.execute(named_params! {
+            ":url": url
+        })?;
         Ok(())
     }
 
     // skip ----------------------------------------------------------------------------------------
     pub(crate) fn skip_product(&mut self, url: &str) -> Result<()> {
-        self.conn.exec_drop(INSERT_SKIP_PRODUCT, params! { "url" => url })?;
+        let mut stmt = self.conn.prepare(INSERT_SKIP_PRODUCT)?;
+        stmt.insert(named_params! {
+            ":url": url
+        })?;
         Ok(())
     }
 
-    pub(crate) fn is_skip_product(&mut self, url: &str) -> Result<bool> {
-        let res: Vec<u32> = self.conn.exec(SELECT_SKIP_PRODUCT, params! {"url" => url})?;
-        Ok(!res.is_empty())
+    pub(crate) fn is_skip_product(&self, url: &str) -> Result<bool> {
+        let mut stmt = self.conn.prepare(SELECT_SKIP_PRODUCT)?;
+        let res = stmt.exists(named_params! {
+            ":url": url
+        })?;
+        Ok(res)
     }
 }
 
-fn open(url: &str) -> Result<PooledConn> {
-    let pool = Pool::new(url)?;
-    let conn = pool.get_conn()?;
-
-    Ok(conn)
-}
-
-fn create_tables(conn : &mut PooledConn) -> Result<()> {
-    conn.query_drop(CREATE_TABLES)?;
+fn create_tables(conn : &mut Connection) -> Result<()> {
+    conn.execute_batch(CREATE_TABLES)?;
     #[cfg(feature = "notification")]
-    conn.query_drop(CREATE_NOTIFICATION_TABLE)?;
+    conn.execute_batch(CREATE_NOTIFICATION_TABLE)?;
     Ok(())
 }
 
@@ -144,6 +184,7 @@ mod test {
     fn test_artist() -> Result<()>{
         let mut db = MelonDB::new_local().unwrap();
         let artists = vec![ mafuyu(), kantoku() ];
+        remove_artists(&mut db);
         db.store_artists(&artists, melonbooks().as_str()).unwrap();
         let res = db.get_artists(melonbooks().as_str()).unwrap();
         assert_eq_unsorted(artists, res);
@@ -154,8 +195,9 @@ mod test {
     #[test]
     fn test_product() -> Result<()> {
         let mut db = MelonDB::new_local().unwrap();
-        remove_products(&mut db).unwrap();
+        remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
+        remove_artists(&mut db);
         db.store_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![ prod1(), prod2(), prod3(), prod4() ];
         db.store_products(&products, melonbooks().as_str()).unwrap();
@@ -168,8 +210,9 @@ mod test {
     #[test]
     fn test_remove_product() -> Result<()> {
         let mut db = MelonDB::new_local().unwrap();
-        remove_products(&mut db).unwrap();
+        remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
+        remove_artists(&mut db);
         db.store_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![prod1(), prod2(), prod3(), prod4()];
         let less_products = vec![prod1(), prod2(), prod4()];
@@ -184,8 +227,9 @@ mod test {
     #[test]
     fn test_remove_artist() -> Result<()> {
         let mut db = MelonDB::new_local().unwrap();
-        remove_products(&mut db).unwrap();
+        remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
+        remove_artists(&mut db);
         db.store_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![prod1(), prod2(), prod3(), prod4()];
         db.store_products(&products, melonbooks().as_str()).unwrap();
@@ -200,8 +244,9 @@ mod test {
     #[test]
     fn test_update_product() -> Result<()> {
         let mut db = MelonDB::new_local().unwrap();
-        remove_products(&mut db).unwrap();
+        remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
+        remove_artists(&mut db);
         db.store_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![prod1(), prod2()];
         db.store_products(&products, melonbooks().as_str()).unwrap();
@@ -278,13 +323,17 @@ mod test {
         )
     }
 
-    fn remove_products(db: &mut MelonDB) -> Result<()> {
+    fn remove_artists(db: &mut MelonDB) {
+        db.remove_artist(kantoku().as_str(), melonbooks().as_str()).unwrap();
+        db.remove_artist(mafuyu().as_str(), melonbooks().as_str()).unwrap();
+    }
+
+    fn remove_products(db: &mut MelonDB) {
         db.remove_product(prod1().url.as_str()).unwrap();
         db.remove_product(prod2().url.as_str()).unwrap();
         db.remove_product(prod1_v2().url.as_str()).unwrap();
         db.remove_product(prod3().url.as_str()).unwrap();
         db.remove_product(prod4().url.as_str()).unwrap();
-        Ok(())
     }
 
     fn assert_eq_unsorted<T: Ord+Debug>(v1: Vec<T>, v2: Vec<T>) {
