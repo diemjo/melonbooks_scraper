@@ -15,9 +15,7 @@
     <?php
 
     $dbpath = __DIR__.DIRECTORY_SEPARATOR."db".DIRECTORY_SEPARATOR."melonbooks.db";
-    $pdo = new PDO("sqlite:$dbpath", "", "", array(
-                PDO::ATTR_PERSISTENT => true
-            ));
+    $pdo = new PDO("sqlite:$dbpath");
     $pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
     $artist_query = $pdo->query("SELECT name from artists");
 
@@ -44,60 +42,60 @@
     reset_artist_names();
 
     switch($_POST["submit"]) {
-        case 'Addd': {
-            if ($_POST["add_artist"]) {
+        case 'Add Artist': {
+            if ($_POST["add_artist"] && $_POST["site"]) {
                 $artist = trim($_POST["add_artist"]);
-                echo "trying to insert " . $artist;
-                $insert_artist_stmt = $pdo->prepare("INSERT INTO artists (name) VALUES (?)");
-                if ($insert_artist_stmt->execute([$artist])) {
+                $site = trim($_POST["site"]);
+                //echo "trying to insert " . $artist . " for " . $site;
+                $insert_artist_stmt = $pdo->prepare("INSERT INTO artists (name, site) VALUES (?, ?)");
+                if ($insert_artist_stmt->execute([$artist, $site])) {
                     update_artist($artist);
-                    reset_artist_names();
-                    echo "success";
+                    //echo "success";
                 }
+                reset_artist_names();
             }
             break;
         }
-        case 'Update Artists': {
-            echo "Update Artists";
+        case 'Remove Artist': {
+            if ($_POST["artist_names"]) {
+                $artist = trim($_POST["artist_names"]);
+                $remove_artist_stmt = $pdo->prepare("DELETE FROM artists WHERE name = (?) AND site = (?)");
+                if ($remove_artist_stmt->execute([$artist, "melonbooks"])) {
+                }
+                reset_artist_names();
+            }
         }
         default: {}
     }
 
     ?>
 
-    <!--form action='/melonbooks/index.php' method='post'>
-        <div class='mdc-text-field mdc-text-field--outlined'>
-            <input class='mdc-text-field__input' autocorrect='off' autocomplete='off' name='add_artist' spellcheck='false' maxlength='512'>
-            <div class='mdc-notched-outline mdc-notched-outline--upgraded'>
-                <div class='mdc-notched-outline__leading'></div>
-                <div class='mdc-notched-outline__notch' style=''>
-                    <label for='demo-mdc-text-field' class='mdc-floating-label' style=''>Add Artist</label>
-                </div>
-                <div class='mdc-notched-outline__trailing'></div>
-            </div>
-        </div>
-        <script>
-            var nodes = document.querySelectorAll('.mdc-text-field');
-            nodes.forEach(function (e, i, p) {
-                mdc.textField.MDCTextField.attachTo(e);
-            })
-        </script>
-        <input class='melonbooks-post-button mdc-button mdc-button--outlined' type='submit' name="submit" value='Add'>
-        <input class='melonbooks-post-button mdc-button mdc-button--outlined' type='submit' name="submit" value='Update Artists'>
-    </form-->
+    <form action='/melonbooks/index.php' method='post' id='add_artist'>
+        <input autocorrect='off' autocomplete='off' name='add_artist' spellcheck='false' maxlength='512'>
+        <select name='site' id='site' form='add_artist'>
+            <option value='melonbooks'>Melonbooks</option>
+        </select>
+        <input type='submit' name="submit" value='Add Artist'>
+    </form>
+    <br>
     <div>
     <?php
-    echo "<label for='artist-names'>Choose an artist </label>";
-    echo "<select name='artist-names' id='artist-names' onchange='this.options[this.selectedIndex].value && (window.location = this.options[this.selectedIndex].value);'>";
-    echo "<option value='/melonbooks/index.php'>All</option>";
+    echo "<label for='artist_names'>Choose an artist </label>";
+    echo "<select name='artist_names' id='artist_names' form='remove_artist' onchange='this.options[this.selectedIndex].value && (window.location = \"/melonbooks/index.php?artist=\" + this.options[this.selectedIndex].value) || (window.location = \"/melonbooks/index.php\");'>";
+    echo "<option value=''>All</option>";
     foreach ($artists as $artist) {
         if ($_GET['artist'] == $artist) {
-            echo "<option selected='selected' value='/melonbooks/index.php?artist=${artist}'>$artist</option>";
+            echo "<option selected='selected' value='${artist}'>$artist</option>";
         } else {
-            echo "<option value='/melonbooks/index.php?artist=${artist}'>$artist</option>";
+            echo "<option value='${artist}'>$artist</option>";
         }
     }
     echo "</select>";
+    if ($_GET['artist']) {
+        echo "<form action='/melonbooks/index.php' id='remove_artist' method='post'>";
+        echo "  <input type='submit' name='submit' value='Remove Artist'>";
+        echo "</form>";
+    }
 	#echo "<a href='/melonbooks/index.php'>All</a></br>";
     #foreach ($artists as $artist) {
     #   echo "<a href='/melonbooks/index.php?artist=${artist}'>$artist</a></br>";
