@@ -86,12 +86,23 @@
         <input class='melonbooks-post-button mdc-button mdc-button--outlined' type='submit' name="submit" value='Update Artists'>
     </form-->
     <div>
-        <?php
-	echo "<a href='/melonbooks/index.php'>All</a></br>";
-        foreach ($artists as $artist) {
-            echo "<a href='/melonbooks/index.php?artist=${artist}'>$artist</a></br>";
+    <?php
+    echo "<label for='artist-names'>Choose an artist </label>";
+    echo "<select name='artist-names' id='artist-names' onchange='this.options[this.selectedIndex].value && (window.location = this.options[this.selectedIndex].value);'>";
+    echo "<option value='/melonbooks/index.php'>All</option>";
+    foreach ($artists as $artist) {
+        if ($_GET['artist'] == $artist) {
+            echo "<option selected='selected' value='/melonbooks/index.php?artist=${artist}'>$artist</option>";
+        } else {
+            echo "<option value='/melonbooks/index.php?artist=${artist}'>$artist</option>";
         }
-        ?>
+    }
+    echo "</select>";
+	#echo "<a href='/melonbooks/index.php'>All</a></br>";
+    #foreach ($artists as $artist) {
+    #   echo "<a href='/melonbooks/index.php?artist=${artist}'>$artist</a></br>";
+    #}
+    ?>
     </div>
 
     <div>
