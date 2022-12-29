@@ -11,7 +11,7 @@ select = "0.5.0"
 clap = { version = "4.0.18", features = ["derive"] }
 regex = "1.6.0"
 tokio = { version = "1.21.2", features = ["macros", "net", "rt-multi-thread"] }
-rusqlite = "0.28.0"
+rusqlite = { version = "0.28.0", features = ["bundled"] }
 thiserror = "1.0.37"
 chrono = "0.4.22"
 lazy_static = "1.4.0"

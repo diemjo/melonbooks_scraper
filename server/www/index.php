@@ -14,8 +14,11 @@
 <body>
     <?php
 
-    $dbpath = "db/melonbooks.db";
-    $pdo = new PDO("sqlite:$dbpath;charset=utf8");
+    $dbpath = __DIR__.DIRECTORY_SEPARATOR."db".DIRECTORY_SEPARATOR."melonbooks.db";
+    $pdo = new PDO("sqlite:$dbpath", "", "", array(
+                PDO::ATTR_PERSISTENT => true
+            ));
+    $pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
     $artist_query = $pdo->query("SELECT name from artists");
 
     /*if ($dbcon->connect_error) {
