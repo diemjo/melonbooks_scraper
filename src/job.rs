@@ -73,16 +73,16 @@ async fn update_products_ws(ws: &dyn WebScraper, types: &Vec<Availability>) -> R
     for (pidx, product) in products.iter().enumerate() {
         println!("[{}/{}] updating product {}", pidx+1, products.len(), &product.url);
         if types.contains(&product.availability) {
-            let new_product = ws.get_product(&product.artist, &product.url)?;
+            let new_product = match ws.get_product(&product.artist, &product.url) {
+                Ok(new_product) => new_product,
+                Err(e) => {
+                    println!("warning, error occurred: {}\nRetrying once", e);
+                    ws.get_product(&product.artist, &product.url)?
+                }
+            };
             if new_product.is_some() {
                 let new_product = new_product.unwrap();
-                match db.update_product(&new_product) {
-                    Ok(()) => Ok(()),
-                    Err(e) => {
-                        println!("Warning, error occurred: {}\nRetrying Once", e);
-                        db.update_product(&new_product)
-                    }
-                }?;
+                db.update_product(&new_product)?;
                 if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
                     notification::notify_product_rerun(&new_product).await?;
                 }
