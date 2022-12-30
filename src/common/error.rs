@@ -16,4 +16,7 @@ pub enum Error {
 
     #[error("Unknown availability enum: {0}")]
     AvailabilityEnumError(String),
+
+    #[error("Error sending discord notification: {0}")]
+    DiscordError(String)
 }

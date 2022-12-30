@@ -1,6 +1,5 @@
 extern crate core;
 
-use tokio::task::spawn_blocking;
 use crate::cli::Args;
 use clap::Parser;
 use lazy_static::lazy_static;
@@ -17,6 +16,7 @@ mod web;
 mod model;
 mod cli;
 mod config;
+mod notification;
 
 const WAIT_DELAY_MS: u64 = 14_400_000;
 
@@ -38,21 +38,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>{
             let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(WAIT_DELAY_MS));
             loop {
                 interval.tick().await;
-                spawn_blocking(move || job::default_job()).await??;
+                job::default_job().await?;
             }
         }
     }
     else if args.load_new {
-        spawn_blocking(move || job::load_products(args.also_new_unavailable)).await??;
+        job::load_products(args.also_new_unavailable).await?
     }
     else if args.refresh {
-        spawn_blocking(move || job::update_products(vec![Available, Preorder])).await??;
+        job::update_products(vec![Available, Preorder]).await?
     }
     else if args.add_artist.is_some(){
-        spawn_blocking(move || job::add_artist(args.add_artist.unwrap().as_str(), args.site.unwrap().as_str())).await??;
+        job::add_artist(args.add_artist.unwrap().as_str(), args.site.unwrap().as_str())?
     }
     else if args.remove_artist.is_some() {
-        spawn_blocking(move || job::remove_artist(args.remove_artist.unwrap().as_str(), args.site.unwrap().as_str())).await??;
+        job::remove_artist(args.remove_artist.unwrap().as_str(), args.site.unwrap().as_str())?
     }
     Ok(())
 }

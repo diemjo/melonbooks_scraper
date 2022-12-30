@@ -44,6 +44,12 @@ pub struct Product {
     pub availability: Availability,
 }
 
+impl AsRef<Product> for Product {
+    fn as_ref(&self) -> &Product {
+        return self;
+    }
+}
+
 impl Product {
     pub(crate) fn from_row(row: &Row) -> rusqlite::Result<Self> {
         Ok(Product::new(

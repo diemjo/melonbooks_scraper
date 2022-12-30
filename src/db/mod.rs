@@ -84,11 +84,12 @@ impl MelonDB {
         Ok(res?)
     }
 
-    pub(crate) fn store_products(&mut self, products: &Vec<Product>, site: &str) -> Result<()> {
+    pub(crate) fn store_products<T: AsRef<Product>>(&mut self, products: &[T], site: &str) -> Result<()> {
         let transaction = self.conn.transaction()?;
         {
             let mut stmt = transaction.prepare(INSERT_PRODUCT)?;
             for product in products {
+                let product = product.as_ref();
                 stmt.insert(named_params! {
                     ":url": product.url,
                     ":title": product.title,

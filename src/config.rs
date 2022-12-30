@@ -6,6 +6,7 @@ use serde_derive::{Deserialize, Serialize};
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct AppConfig {
     pub db_path: PathBuf,
+    pub discord_api_key: Option<String>,
 }
 
 impl AppConfig {
@@ -24,6 +25,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
             db_path: PathBuf::from("/data/melonbooks.db"),
+            discord_api_key: None
         }
     }
 }

@@ -42,12 +42,6 @@ impl MelonbooksScraper {
         Ok(url)
     }
 
-    fn parse_main_category(node: Node) -> Result<String> {
-        let str = node.find(Class("bcs").descendant(Name("span"))).skip(1).next().ok_or(HtmlParseError("product_main_category".to_string()))?;
-        let category = str.inner_html();
-        Ok(category)
-    }
-
     fn parse_title(node: Node) -> Result<String> {
         let str = node.find(Class("page-header")).next().ok_or(HtmlParseError("product_title".to_string()))?;
         //let str = node.find(Attr("id", "title").descendant(Class("str"))).next().ok_or(HtmlParseError("product_title".to_string()))?;
