@@ -76,7 +76,13 @@ async fn update_products_ws(ws: &dyn WebScraper, types: &Vec<Availability>) -> R
             let new_product = ws.get_product(&product.artist, &product.url)?;
             if new_product.is_some() {
                 let new_product = new_product.unwrap();
-                db.update_product(&new_product)?;
+                match db.update_product(&new_product) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        println!("Warning, error occurred: {}\nRetrying Once", e);
+                        db.update_product(&new_product)
+                    }
+                }?;
                 if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
                     notification::notify_product_rerun(&new_product).await?;
                 }
