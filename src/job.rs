@@ -78,9 +78,8 @@ async fn update_products_ws(ws: &dyn WebScraper, types: &Vec<Availability>) -> R
                 Err(crate::common::error::Error::WebError(we)) => {
                     if we.is_timeout() {
                         // retry once
-                        println!("timeout, waiting 30s");
+                        println!("timeout, skipping product and waiting 30s");
                         tokio::time::sleep(core::time::Duration::from_secs(30)).await;
-                        update_single_product(ws, &mut db, product).await?;
                     } else {
                         return Err(crate::common::error::Error::WebError(we));
                     }
