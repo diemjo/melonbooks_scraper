@@ -70,26 +70,44 @@ async fn update_products_ws(ws: &dyn WebScraper, types: &Vec<Availability>) -> R
     let site = ws.get_site_name();
     let mut db = MelonDB::new()?;
     let products = db.get_products(site)?.into_iter().filter(|p| types.contains(&p.availability)).collect::<Vec<Product>>();
-    for (pidx, product) in products.iter().enumerate() {
-        println!("[{}/{}] updating product {}", pidx+1, products.len(), &product.url);
+    for (idx, product) in products.iter().enumerate() {
+        println!("[{}/{}] updating product {}", idx+1, products.len(), &product.url);
         if types.contains(&product.availability) {
-            let new_product = match ws.get_product(&product.artist, &product.url) {
-                Ok(new_product) => new_product,
-                Err(e) => {
-                    println!("warning, error occurred: {}\nRetrying once", e);
-                    ws.get_product(&product.artist, &product.url)?
-                }
-            };
-            if new_product.is_some() {
-                let new_product = new_product.unwrap();
-                db.update_product(&new_product)?;
-                if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
-                    notification::notify_product_rerun(&new_product).await?;
-                }
-            } else {
-                //???
+            match update_single_product(ws, &mut db, product).await {
+                Ok(()) => {},
+                Err(crate::common::error::Error::WebError(we)) => {
+                    if we.is_timeout() {
+                        // retry once
+                        println!("timeout, waiting 30s");
+                        tokio::time::sleep(core::time::Duration::from_secs(30)).await;
+                        update_single_product(ws, &mut db, product).await?;
+                    } else {
+                        return Err(crate::common::error::Error::WebError(we));
+                    }
+                },
+                e @ Err(_) => { return e; }
             }
         }
+    }
+    Ok(())
+}
+
+async fn update_single_product(ws: &dyn WebScraper, db: &mut MelonDB, product: &Product) -> Result<()> {
+    let new_product = match ws.get_product(&product.artist, &product.url) {
+        Ok(new_product) => new_product,
+        Err(e) => {
+            println!("warning, error occurred: {}\nRetrying once", e);
+            ws.get_product(&product.artist, &product.url)?
+        }
+    };
+    if new_product.is_some() {
+        let new_product = new_product.unwrap();
+        db.update_product(&new_product)?;
+        if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
+            notification::notify_product_rerun(&new_product).await?;
+        }
+    } else {
+        //???
     }
     Ok(())
 }
