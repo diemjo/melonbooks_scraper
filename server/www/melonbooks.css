@@ -9,5 +9,5 @@ table {
 }
 
 img {
-    height: 150px
+    max-height: 250px
 }

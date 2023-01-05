@@ -108,34 +108,53 @@
 	 if ($_GET['artist']) {
 	 $artist = $_GET['artist'];
 	 echo "showing products for ${artist}.";
-         $products_query = $pdo->prepare("SELECT url, title, artist, site, imgUrl, dateAdded, availability FROM products WHERE availability in ('Available', 'Preorder') AND artist = (:artist) ORDER BY dateAdded DESC, artist ASC", [PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY]);
+         $products_query = $pdo->prepare("SELECT url, title, artist, site, imgUrl, dateAdded, availability FROM products WHERE availability in ('Available', 'Preorder') AND artist = (:artist) ORDER BY dateAdded DESC, CAST(SUBSTR(url, INSTR(url, 'product_id=') + 11) AS INTEGER) DESC", [PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY]);
          $products_query->execute(['artist' => $artist]);
          } else {
-         $products_query = $pdo->prepare("SELECT url, title, artist, site, imgUrl, dateAdded, availability FROM products WHERE availability in ('Available', 'Preorder') ORDER BY dateAdded DESC, artist ASC", [PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY]);
+         $products_query = $pdo->prepare("SELECT url, title, artist, site, imgUrl, dateAdded, availability FROM products WHERE availability in ('Available', 'Preorder') ORDER BY dateAdded DESC, CAST(SUBSTR(url, INSTR(url, 'product_id=') + 11) AS INTEGER) DESC", [PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY]);
          $products_query->execute([]);
          }
 	 $results = $products_query->fetchAll();
       
-         echo "<table><tr>";
+         echo "<table style='table-layout: fixed; display:block'><tr style=''>";
+	 $cols = 3;
          //header
-         echo "<th style='width:20%'>Image</th>";
-         echo "<th style='width:45%'>Title</th>";
-         echo "<th style='width:10%'>Artist</th>";
-         echo "<th style='width:5%'>Site</th>";
-         echo "<th style='width:10%'>Date Added</th>";
-         echo "<th style='width:10%'>Availability</th>";
-         echo "</tr>";
+	 for ($i = 0; $i < $cols; $i+=1) {
+             echo "<th style='width:" . (50/$cols) . "%'>Image</th>";
+             echo "<th style='width:" . (40/$cols) . "%'>Info</th>";
+             echo "<th style='width:" . (10/$cols) . "%'>Availability</th>";
+         }
+	 echo "</tr>";
          //data  
+	 $ind = 0;
          foreach ($results as $row)  {
-             echo "<tr>";
-             echo "<td><img src='{$row[4]}&height=150'></td>";
-             echo "<td><a href={$row[0]}>{$row[1]}</a></td>";
-             echo "<td>{$row[2]}</td>";
-             echo "<td>{$row[3]}</td>";
-             echo "<td>{$row[5]}</td>";
-             echo "<td>{$row[6]}</td>";
-             echo "</tr>";
-         } 
+	     if ($ind%$cols==0) {
+                 echo "<tr style='max-height=250px'>";
+	     }
+             echo "<td style=''><img src='{$row[4]}&height=250' style='height:auto; max-width:100%'></td>";
+             echo "<td style=''>";
+             echo "<a href={$row[0]}>{$row[1]}</a>";
+             echo "<br>Artist: <a style='color:#11bb11'>{$row[2]}</a>";
+	     echo "<br>Date: {$row[5]}";
+             echo "</td>";
+             if ($row[6] == "Available") {
+	         $color = "#dd7722";
+             } else if ($row[6] == "Preorder") {
+                 $color = "#3322cc";
+             } else if ($row[6] == "NotAvailable") {
+                 $color = "#ff3333";
+             } else {
+                 $color = "black";
+             }
+             echo "<td style='color:{$color}'>{$row[6]}</td>";
+             if ($ind%$cols==$cols-1) {
+                 echo "</tr>";
+	     }
+	     $ind = $ind + 1;
+         }
+         if (count($results)%$cols!=0) {
+	     echo "</tr>";
+         }
 	 echo "</table>";
          
       ?>
