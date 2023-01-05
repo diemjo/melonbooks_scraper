@@ -43,38 +43,30 @@ async fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result
             .filter(|u| db.is_product_unavailable(u).unwrap_or(false))
             .collect::<Vec<String>>();
         let mut products: Vec<Product> = vec![];
-        println!("[Search] Found {} total products, {} new, {} available again", total_count, new_urls.len(), old_urls.len());
+        println!("[Search] Found {} total products, {} new, {} {}available again", total_count, new_urls.len(), old_urls.len(), if also_unavailable { "potentially " } else { "" });
         for (pidx, url) in new_urls.iter().enumerate() {
             let product = ws.get_product(artist.as_str(), url.as_str())?;
-            if product.is_some() {
-                let product = product.unwrap();
-                if product.artists.contains(artist) {
-                    println!("[Product] {}/{} Adding {} : {}", pidx+1, new_urls.len(), &product.url, &product.title);
-                    db.store_products(&vec![&product], site)?;
-                    products.push(product);
-                } else {
-                    println!("[Product] {}/{} Skipping {}, artist \"{}\" not in {:?}", pidx+1, new_urls.len(), &url, artist, product.artists);
-                    db.skip_product(product)?;
-                }
+            if product.artists.contains(artist) {
+                println!("[Product] {}/{} Adding {} : {}", pidx+1, new_urls.len(), &product.url, &product.title);
+                db.store_products(&vec![&product], site)?;
+                products.push(product);
             } else {
-                // ???
+                println!("[Product] {}/{} Skipping {}, artist \"{}\" not in {:?}", pidx+1, new_urls.len(), &url, artist, product.artists);
+                db.skip_product(product)?;
             }
             sleep(core::time::Duration::from_millis(500));
         }
         notification::notify_new_products(&products, artist).await?;
         for (pidx, url) in old_urls.iter().enumerate() {
             let product = ws.get_product(artist.as_str(), url.as_str())?;
-            if product.is_some() {
-                let product = product.unwrap();
+            if product.availability != Availability::NotAvailable {
                 println!("[Product] {}/{} Updating {} : {}", pidx+1, old_urls.len(), &product.url, &product.title);
                 db.update_availability(&product)?;
                 notification::notify_product_rerun(&product).await?;
-            } else {
-                // ???
             }
             sleep(core::time::Duration::from_millis(500));
         }
-        sleep(core::time::Duration::from_millis(2000));
+        sleep(core::time::Duration::from_millis(500));
     }
     Ok(())
 }
@@ -119,15 +111,10 @@ async fn update_single_product(ws: &dyn WebScraper, db: &mut MelonDB, product: &
             ws.get_product(&product.associated_artist, &product.url)?
         }
     };
-    if new_product.is_some() {
-        let new_product = new_product.unwrap();
-        db.update_availability(&new_product)?;
-        // this cannot not happen when updating only available/preorder products
-        if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
-            notification::notify_product_rerun(&new_product).await?;
-        }
-    } else {
-        //???
+    db.update_availability(&new_product)?;
+    // this cannot not happen when updating only available/preorder products
+    if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
+        notification::notify_product_rerun(&new_product).await?;
     }
     Ok(())
 }

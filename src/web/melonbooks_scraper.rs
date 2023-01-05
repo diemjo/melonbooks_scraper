@@ -149,7 +149,7 @@ impl MelonbooksScraper {
         Ok(availability)
     }
 
-    fn parse_product(&self, artist: &str, product_url: &str, html: Document) -> Result<Option<Product>> {
+    fn parse_product(&self, artist: &str, product_url: &str, html: Document) -> Result<Product> {
         let main_part = html.find(Class("item-page")).next().ok_or(HtmlParseError("product_main_part".to_string()))?;
 
         /*let main_category = MelonbooksScraper::parse_main_category(main_part)?;
@@ -166,7 +166,7 @@ impl MelonbooksScraper {
 
         let product = Product::new(product_url.to_string(), title, artist.to_string(), artists, img_url, date_added, availability);
         //println!("{}", product);
-        Ok(Some(product))
+        Ok(product)
     }
 }
 
@@ -203,7 +203,7 @@ impl WebScraper for MelonbooksScraper {
         Ok(product_urls)
     }
 
-    fn get_product(&self, artist: &str, product_url: &str) -> Result<Option<Product>> {
+    fn get_product(&self, artist: &str, product_url: &str) -> Result<Product> {
         let response = self.client.get(product_url).send()?.error_for_status()?;
         let body = response.text()?;
         let html = Document::from(body.as_str());
@@ -230,7 +230,7 @@ mod tests {
         let ws = MelonbooksScraper::new().unwrap();
         let urls = ws.get_urls("カントク", true).unwrap();
         for url in urls.iter().take(3) {
-            let product = ws.get_product("カントク", url).unwrap().unwrap();
+            let product = ws.get_product("カントク", url).unwrap();
             println!(" {}, {}", product.date_added, product.title);
         }
     }
@@ -264,7 +264,7 @@ mod tests {
         let ws = MelonbooksScraper::new().unwrap();
         let urls = ws.get_urls("カントク", true).unwrap();
         for url in urls.iter().skip(370) {
-            let product = ws.get_product("カントク", url).unwrap().unwrap();
+            let product = ws.get_product("カントク", url).unwrap();
             println!(" {}, {}", product.date_added, product.title);
         }
     }
@@ -273,7 +273,7 @@ mod tests {
     fn test_get_single_artist() {
         let ws = MelonbooksScraper::new().unwrap();
         let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=1798584";
-        let product = ws.get_product("mignon", url).unwrap().unwrap();
+        let product = ws.get_product("mignon", url).unwrap();
         assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["mignon".to_string()]));
     }
 
@@ -281,7 +281,7 @@ mod tests {
     fn test_get_multiple_artists() {
         let ws = MelonbooksScraper::new().unwrap();
         let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=1590895";
-        let product = ws.get_product("わんちょ", url).unwrap().unwrap();
+        let product = ws.get_product("わんちょ", url).unwrap();
         assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["小路あゆむ".to_string(), "わんちょ".to_string()]));
     }
 
@@ -289,7 +289,7 @@ mod tests {
     fn test_alternative_artist_table_name() {
         let ws = MelonbooksScraper::new().unwrap();
         let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=762286";
-        let product = ws.get_product("nana", url).unwrap().unwrap();
+        let product = ws.get_product("nana", url).unwrap();
         assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["ANNA　inspi’NANA".to_string()]));
     }
 
@@ -297,7 +297,7 @@ mod tests {
     fn test_duplicate_artist_name() {
         let ws = MelonbooksScraper::new().unwrap();
         let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=741212";
-        let product = ws.get_product("nana", url).unwrap().unwrap();
+        let product = ws.get_product("nana", url).unwrap();
         assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["神野ろく".to_string(), "Code:774/nanasea".to_string()]));
     }
 }
