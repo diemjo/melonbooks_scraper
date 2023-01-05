@@ -63,7 +63,7 @@ impl MelonbooksScraper {
             .flat_map(|n| n.parent())
             .filter(|p| p.find(Name("th"))
                 .next()
-                .and_then(|th| Some(th.inner_html().eq("作家名"))).unwrap_or(false)
+                .and_then(|th| Some(th.inner_html().eq("作家名") || th.inner_html().eq("アーティスト"))).unwrap_or(false)
             )
             .flat_map(|p| p.find(Name("a")))
             .filter(|a| a.attr("href").unwrap_or("#") != "#")
