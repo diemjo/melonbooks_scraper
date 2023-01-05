@@ -2,7 +2,7 @@ use rusqlite::{Connection, named_params};
 use crate::common::error::{Result};
 use crate::CONFIGURATION;
 use crate::db::sql::*;
-use crate::model::{Product};
+use crate::model::{Product, Availability};
 
 mod sql;
 
@@ -40,14 +40,18 @@ impl MelonDB {
         Ok(res?)
     }
 
-    pub(crate) fn store_artists(&mut self, artists: &Vec<String>, site: &str) -> Result<()> {
+    pub(crate) fn insert_artists(&mut self, artists: &Vec<String>, site: &str) -> Result<()> {
         let transaction = self.conn.transaction()?;
         {
             let mut stmt = transaction.prepare(INSERT_ARTIST)?;
+            let mut skip_stmt = transaction.prepare(REMOVE_SKIP_PRODUCTS)?;
             for artist in artists {
                 stmt.insert(named_params! {
                     ":name": artist,
                     ":site": site
+                })?;
+                skip_stmt.execute(named_params! {
+                    ":artist": artist
                 })?;
             }
         }
@@ -73,6 +77,15 @@ impl MelonDB {
         Ok(res)
     }
 
+    pub(crate) fn is_product_unavailable(&self, url: &str) -> Result<bool> {
+        let mut stmt = self.conn.prepare(SELECT_AVAILABILITY_PRODUCT)?;
+        let res = stmt.exists(named_params! {
+            ":url": url,
+            ":availability": Availability::NotAvailable.to_string()
+        })?;
+        Ok(res)
+    }
+
     pub(crate) fn get_products(&self, site: &str) -> Result<Vec<Product>> {
         let mut stmt = self.conn.prepare(SELECT_PRODUCTS)?;
         let rows: Vec<std::result::Result<Product, rusqlite::Error>> = stmt.query_map(named_params! {
@@ -93,12 +106,19 @@ impl MelonDB {
                 stmt.insert(named_params! {
                     ":url": product.url,
                     ":title": product.title,
-                    ":artist": product.artist,
+                    ":artist": product.associated_artist,
                     ":site": site,
                     ":img_url": product.img_url,
                     ":date_added": product.date_added.to_string(),
                     ":availability": product.availability.to_string()
                 })?;
+                let mut stmt = transaction.prepare(INSERT_PRODUCT_ARTIST)?;
+                for artist in &product.artists {
+                    stmt.insert(named_params! {
+                        ":url": product.url,
+                        ":artist": artist
+                    })?;
+                }
             }
         }
         transaction.commit()?;
@@ -117,14 +137,10 @@ impl MelonDB {
         Ok(())*/
     }
 
-    pub(crate) fn update_product(&mut self, product: &Product) -> Result<()> {
-        let mut stmt = self.conn.prepare(UPDATE_PRODUCT)?;
+    pub(crate) fn update_availability(&mut self, product: &Product) -> Result<()> {
+        let mut stmt = self.conn.prepare(UPDATE_PRODUCT_AVAILABILITY)?;
         stmt.execute(named_params! {
              ":url": product.url,
-            ":title": product.title,
-            ":artist": product.artist,
-            ":img_url": product.img_url,
-            ":date_added": product.date_added.to_string(),
             ":availability": product.availability.to_string()
         })?;
         Ok(())
@@ -149,11 +165,18 @@ impl MelonDB {
     }
 
     // skip ----------------------------------------------------------------------------------------
-    pub(crate) fn skip_product(&mut self, url: &str) -> Result<()> {
-        let mut stmt = self.conn.prepare(INSERT_SKIP_PRODUCT)?;
-        stmt.insert(named_params! {
-            ":url": url
-        })?;
+    pub(crate) fn skip_product(&mut self, product: Product) -> Result<()> {
+        let transaction = self.conn.transaction()?;
+        {
+            let mut stmt = transaction.prepare(INSERT_SKIP_PRODUCT)?;
+            for artist in &product.artists {
+                stmt.insert(named_params! {
+                    ":url": product.url,
+                    ":artist": artist
+                })?;
+            }
+        }
+        transaction.commit()?;
         Ok(())
     }
 
@@ -186,7 +209,7 @@ mod test {
         let mut db = MelonDB::new_local().unwrap();
         let artists = vec![ mafuyu(), kantoku() ];
         remove_artists(&mut db);
-        db.store_artists(&artists, melonbooks().as_str()).unwrap();
+        db.insert_artists(&artists, melonbooks().as_str()).unwrap();
         let res = db.get_artists(melonbooks().as_str()).unwrap();
         assert_eq_unsorted(artists, res);
         //println!("res={}", res.iter().map(|a| a.to_string()).collect::<Vec<String>>().join(",\n"));
@@ -199,7 +222,7 @@ mod test {
         remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
         remove_artists(&mut db);
-        db.store_artists(&artists, melonbooks().as_str()).unwrap();
+        db.insert_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![ prod1(), prod2(), prod3(), prod4() ];
         db.store_products(&products, melonbooks().as_str()).unwrap();
         let res = db.get_products(melonbooks().as_str()).unwrap();
@@ -214,7 +237,7 @@ mod test {
         remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
         remove_artists(&mut db);
-        db.store_artists(&artists, melonbooks().as_str()).unwrap();
+        db.insert_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![prod1(), prod2(), prod3(), prod4()];
         let less_products = vec![prod1(), prod2(), prod4()];
         db.store_products(&products, melonbooks().as_str()).unwrap();
@@ -231,7 +254,7 @@ mod test {
         remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
         remove_artists(&mut db);
-        db.store_artists(&artists, melonbooks().as_str()).unwrap();
+        db.insert_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![prod1(), prod2(), prod3(), prod4()];
         db.store_products(&products, melonbooks().as_str()).unwrap();
         let res = db.get_products(melonbooks().as_str()).unwrap();
@@ -248,10 +271,10 @@ mod test {
         remove_products(&mut db);
         let artists = vec![ mafuyu(), kantoku() ];
         remove_artists(&mut db);
-        db.store_artists(&artists, melonbooks().as_str()).unwrap();
+        db.insert_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![prod1(), prod2()];
         db.store_products(&products, melonbooks().as_str()).unwrap();
-        db.update_product(&prod1_v2()).unwrap();
+        db.update_availability(&prod1_v2()).unwrap();
         let res = db.get_products(melonbooks().as_str()).unwrap();
         assert_eq_unsorted(vec![prod1_v2(), prod2()], res);
         Ok(())
@@ -274,6 +297,7 @@ mod test {
             "url123".to_string(),
             "title1".to_string(),
             mafuyu(),
+            vec![mafuyu()],
             "url1".to_string(),
             NaiveDate::from_ymd(2022, 09, 13),
             Availability::Available
@@ -283,8 +307,9 @@ mod test {
     fn prod1_v2() -> Product {
         Product::new(
             "url123".to_string(),
-            "title1_v2".to_string(),
+            "title1".to_string(),
             mafuyu(),
+            vec![mafuyu()],
             "url1".to_string(),
             NaiveDate::from_ymd(2022, 09, 13),
             Availability::NotAvailable
@@ -296,6 +321,7 @@ mod test {
             "url456".to_string(),
             "title2".to_string(),
             mafuyu(),
+            vec![mafuyu()],
             "url44".to_string(),
             NaiveDate::from_ymd(2021, 12, 01),
             Availability::Available
@@ -307,6 +333,7 @@ mod test {
             "url789".to_string(),
             "title1".to_string(),
             kantoku(),
+            vec![kantoku()],
             "url55".to_string(),
             NaiveDate::from_ymd(2022, 03, 13),
             Availability::Preorder
@@ -318,6 +345,7 @@ mod test {
             "url101112".to_string(),
             "title55".to_string(),
             kantoku(),
+            vec![kantoku()],
             "url007".to_string(),
             NaiveDate::from_ymd(2020, 03, 13),
             Availability::NotAvailable

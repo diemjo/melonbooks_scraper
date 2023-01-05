@@ -19,9 +19,19 @@ pub const CREATE_TABLES : &str =
             ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS product_artists (
+        url VARCHAR(128) NOT NULL,
+        artist VARCHAR(64) NOT NULL,
+        PRIMARY KEY (url, artist),
+        CONSTRAINT fk_url
+            FOREIGN KEY (url) REFERENCES products (url)
+            ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS skip_products (
         url VARCHAR(128) NOT NULL,
-        PRIMARY KEY (url)
+        artist VARCHAR(64) NOT NULL,
+        PRIMARY KEY (url, artist)
     );
 ";
 
@@ -40,31 +50,70 @@ const CREATE_NOTIFICATION_TABLE: &str =
 ";
 
 pub const SELECT_ARTISTS: &str =
-    r"SELECT name FROM artists WHERE site = (:site) ORDER BY name ASC";
+    r"SELECT name
+    FROM artists
+    WHERE site = (:site)
+    ORDER BY name ASC";
 
 pub const INSERT_ARTIST: &str =
-    r"INSERT INTO artists (name, site) VALUES (:name, :site)";
+    r"INSERT INTO artists (name, site)
+    VALUES (:name, :site)";
 
 pub const REMOVE_ARTIST: &str =
-    r"DELETE FROM artists WHERE name=(:name) AND site=(:site)";
+    r"DELETE FROM artists
+    WHERE name=(:name)
+    AND site=(:site)";
 
 pub const SELECT_PRODUCT: &str =
-    r"SELECT 1 FROM products WHERE url = (:url)";
+    r"SELECT 1
+    FROM products
+    WHERE url = (:url)";
+
+pub const SELECT_AVAILABILITY_PRODUCT: &str =
+    r"SELECT 1
+    FROM products
+    WHERE url = (:url)
+    AND availability = (:availability)";
 
 pub const SELECT_PRODUCTS: &str =
-    r"SELECT url, title, artist, imgUrl, dateAdded, availability FROM products WHERE site=(:site) ORDER BY dateAdded DESC, artist ASC";
+    r"SELECT p.url, p.title, p.artist, group_concat(pa.artist), p.imgUrl, p.dateAdded, p.availability
+    FROM products p
+    JOIN product_artists pa ON p.url = pa.url 
+    WHERE site=(:site)
+    GROUP BY p.url
+    ORDER BY p.dateAdded DESC, p.artist ASC";
 
 pub const INSERT_PRODUCT: &str =
-    r"INSERT INTO products (url, title, artist, site, imgUrl, dateAdded, availability) VALUES (:url, :title, :artist, :site, :img_url, :date_added, :availability)";
+    r"INSERT INTO products (url, title, artist, site, imgUrl, dateAdded, availability)
+    VALUES (:url, :title, :artist, :site, :img_url, :date_added, :availability)";
+
+pub const INSERT_PRODUCT_ARTIST: &str =
+    r"INSERT OR IGNORE INTO product_artists (url, artist)
+    VALUES (:url, :artist)";
+
 
 #[cfg(test)]
-pub const REMOVE_PRODUCT: &str = r"DELETE FROM products WHERE url=(:url)";
+pub const REMOVE_PRODUCT: &str = 
+    r"DELETE FROM products
+    WHERE url=(:url)";
 
-pub const UPDATE_PRODUCT: &str =
-    r"UPDATE products SET title = (:title), artist = (:artist), imgUrl = (:img_url), dateAdded = (:date_added), availability = (:availability) WHERE url = (:url)";
+pub const UPDATE_PRODUCT_AVAILABILITY: &str =
+    r"UPDATE products
+    SET availability = (:availability)
+    WHERE url = (:url)";
 
 pub const INSERT_SKIP_PRODUCT: &str =
-    r"INSERT INTO skip_products (url) VALUES (:url)";
+    r"INSERT INTO skip_products (url, artist)
+    VALUES (:url, :artist)";
 
 pub const SELECT_SKIP_PRODUCT: &str =
-    r"SELECT 1 FROM skip_products WHERE url = (:url)";
+    r"SELECT 1 FROM skip_products
+    WHERE url = (:url)";
+
+pub const REMOVE_SKIP_PRODUCTS: &str =
+    r"DELETE FROM skip_products
+    WHERE url in (
+        SELECT url
+        FROM skip_products
+        WHERE artist = (:artist)
+    )";

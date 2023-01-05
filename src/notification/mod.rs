@@ -71,6 +71,7 @@ mod test {
                 "https://www.melonbooks.co.jp/detail/detail.php?product_id=1793662".to_string(),
                 "アクリルキューブ nana Uribou New Yaer2023".to_string(),
                 "nana".to_string(),
+                vec!["nana".to_string()],
                 "https://melonbooks.akamaized.net/user_data/packages/resize_image.php?image=217001225510.jpg".to_string(),
                 Utc::now().date_naive(),
                 crate::model::Availability::Available
@@ -79,6 +80,7 @@ mod test {
                 "https://www.melonbooks.co.jp/detail/detail.php?product_id=1704677".to_string(),
                 "【2次受注】A3キャラファイングラフ nana 冬の物語(一般差分)".to_string(),
                 "nana".to_string(),
+                vec!["nana".to_string()],
                 "https://melonbooks.akamaized.net/user_data/packages/resize_image.php?image=217001211823.jpg".to_string(),
                 Utc::now().date_naive(),
                 crate::model::Availability::Available

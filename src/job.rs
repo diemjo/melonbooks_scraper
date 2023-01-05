@@ -35,25 +35,45 @@ async fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result
     for (aidx, artist) in artists.iter().enumerate() {
         println!("[Artist] {}/{} Loading products for artist {}:", aidx+1, artists.len(), artist);
         let urls = ws.get_urls(artist.as_str(), also_unavailable)?;
-        let new_urls : Vec<&String>= urls.iter()
-            .filter(|u| !db.contains_product(u.as_str()).unwrap_or(false) && !db.is_skip_product(u.as_str()).unwrap_or(false))
-            .collect();
+        let total_count = urls.len();
+        let (old_urls, new_urls) : (Vec<String>, Vec<String>) = urls.into_iter()
+            .filter(|u| !db.is_skip_product(u.as_str()).unwrap_or(false))
+            .partition(|u| db.contains_product(u.as_str()).unwrap_or(true));
+        let old_urls = old_urls.into_iter()
+            .filter(|u| db.is_product_unavailable(u).unwrap_or(false))
+            .collect::<Vec<String>>();
         let mut products: Vec<Product> = vec![];
-        println!("[Search] Found {} total products, {} new", urls.len(), new_urls.len());
-        for (pidx, &url) in new_urls.iter().enumerate() {
+        println!("[Search] Found {} total products, {} new, {} available again", total_count, new_urls.len(), old_urls.len());
+        for (pidx, url) in new_urls.iter().enumerate() {
             let product = ws.get_product(artist.as_str(), url.as_str())?;
             if product.is_some() {
                 let product = product.unwrap();
-                println!("[Product] {}/{} Adding {} : {}", pidx+1, new_urls.len(), &product.url, &product.title);
-                db.store_products(&vec![&product], site)?;
-                products.push(product);
+                if product.artists.contains(artist) {
+                    println!("[Product] {}/{} Adding {} : {}", pidx+1, new_urls.len(), &product.url, &product.title);
+                    db.store_products(&vec![&product], site)?;
+                    products.push(product);
+                } else {
+                    println!("[Product] {}/{} Skipping {}, artist \"{}\" not in {:?}", pidx+1, new_urls.len(), &url, artist, product.artists);
+                    db.skip_product(product)?;
+                }
             } else {
-                println!("[Product] {}/{} Skipping {}", pidx+1, new_urls.len(), &url);
-                db.skip_product(url)?;
+                // ???
             }
             sleep(core::time::Duration::from_millis(500));
         }
         notification::notify_new_products(&products, artist).await?;
+        for (pidx, url) in old_urls.iter().enumerate() {
+            let product = ws.get_product(artist.as_str(), url.as_str())?;
+            if product.is_some() {
+                let product = product.unwrap();
+                println!("[Product] {}/{} Updating {} : {}", pidx+1, old_urls.len(), &product.url, &product.title);
+                db.update_availability(&product)?;
+                notification::notify_product_rerun(&product).await?;
+            } else {
+                // ???
+            }
+            sleep(core::time::Duration::from_millis(500));
+        }
         sleep(core::time::Duration::from_millis(2000));
     }
     Ok(())
@@ -92,16 +112,17 @@ async fn update_products_ws(ws: &dyn WebScraper, types: &Vec<Availability>) -> R
 }
 
 async fn update_single_product(ws: &dyn WebScraper, db: &mut MelonDB, product: &Product) -> Result<()> {
-    let new_product = match ws.get_product(&product.artist, &product.url) {
+    let new_product = match ws.get_product(&product.associated_artist, &product.url) {
         Ok(new_product) => new_product,
         Err(e) => {
             println!("warning, error occurred: {}\nRetrying once", e);
-            ws.get_product(&product.artist, &product.url)?
+            ws.get_product(&product.associated_artist, &product.url)?
         }
     };
     if new_product.is_some() {
         let new_product = new_product.unwrap();
-        db.update_product(&new_product)?;
+        db.update_availability(&new_product)?;
+        // this cannot not happen when updating only available/preorder products
         if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
             notification::notify_product_rerun(&new_product).await?;
         }
@@ -113,7 +134,7 @@ async fn update_single_product(ws: &dyn WebScraper, db: &mut MelonDB, product: &
 
 pub(crate) fn add_artist(artist: &str, site: &str) -> Result<()> {
     let mut db = MelonDB::new()?;
-    db.store_artists(&vec![artist.to_string()], site)?;
+    db.insert_artists(&vec![artist.to_string()], site)?;
     Ok(())
 }
 

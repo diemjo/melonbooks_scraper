@@ -58,6 +58,26 @@ impl MelonbooksScraper {
         Ok(img_url)
     }
 
+    fn parse_artists(node: Node) -> Result<Vec<String>> {
+        let nodes = node.find(Class("product_info"))
+            .flat_map(|n| n.parent())
+            .filter(|p| p.find(Name("th"))
+                .next()
+                .and_then(|th| Some(th.inner_html().eq("作家名"))).unwrap_or(false)
+            )
+            .flat_map(|p| p.find(Name("a")))
+            .filter(|a| a.attr("href").unwrap_or("#") != "#")
+            .collect::<Vec<Node>>();
+        let artists = nodes.iter()
+            .map(|a| a.inner_html())
+            .collect::<Vec<String>>();
+        if artists.len()==0 {
+            Err(HtmlParseError("product_artists".to_string()))
+        } else {
+            Ok(artists)
+        }
+    }
+
     /*fn parse_date(node: Node) -> Result<NaiveDate> {
         let tr_opt = node.find(Class("stripe").descendant(Name("tr"))).filter(
             |tr| tr.find(Name("th")).next().map_or(String::new(), |n|n.inner_html()) == "発行日"
@@ -139,8 +159,9 @@ impl MelonbooksScraper {
         //let date_added = Self::parse_date(main_part)?;
         let date_added = Utc::now().date_naive();
         let availability = Self::parse_availability(main_part)?;
+        let artists = Self::parse_artists(main_part)?;
 
-        let product = Product::new(product_url.to_string(), title, artist.to_string(), img_url, date_added, availability);
+        let product = Product::new(product_url.to_string(), title, artist.to_string(), artists, img_url, date_added, availability);
         //println!("{}", product);
         Ok(Some(product))
     }
@@ -196,6 +217,8 @@ impl WebScraper for MelonbooksScraper {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::web::melonbooks_scraper::MelonbooksScraper;
     use crate::web::WebScraper;
 
@@ -241,5 +264,21 @@ mod tests {
             let product = ws.get_product("カントク", url).unwrap().unwrap();
             println!(" {}, {}", product.date_added, product.title);
         }
+    }
+
+    #[test]
+    fn test_get_single_artist() {
+        let ws = MelonbooksScraper::new().unwrap();
+        let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=1798584";
+        let product = ws.get_product("mignon", url).unwrap().unwrap();
+        assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["mignon".to_string()]));
+    }
+
+    #[test]
+    fn test_get_multiple_artists() {
+        let ws = MelonbooksScraper::new().unwrap();
+        let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=1590895";
+        let product = ws.get_product("わんちょ", url).unwrap().unwrap();
+        assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["小路あゆむ".to_string(), "わんちょ".to_string()]));
     }
 }
