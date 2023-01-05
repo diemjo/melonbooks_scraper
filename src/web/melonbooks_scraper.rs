@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use chrono::{Utc};
 use reqwest::blocking::Client;
@@ -70,6 +71,8 @@ impl MelonbooksScraper {
             .collect::<Vec<Node>>();
         let artists = nodes.iter()
             .map(|a| a.inner_html())
+            .collect::<HashSet<String>>()
+            .into_iter()
             .collect::<Vec<String>>();
         if artists.len()==0 {
             Err(HtmlParseError("product_artists".to_string()))
@@ -280,5 +283,21 @@ mod tests {
         let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=1590895";
         let product = ws.get_product("わんちょ", url).unwrap().unwrap();
         assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["小路あゆむ".to_string(), "わんちょ".to_string()]));
+    }
+
+    #[test]
+    fn test_alternative_artist_table_name() {
+        let ws = MelonbooksScraper::new().unwrap();
+        let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=762286";
+        let product = ws.get_product("nana", url).unwrap().unwrap();
+        assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["ANNA　inspi’NANA".to_string()]));
+    }
+
+    #[test]
+    fn test_duplicate_artist_name() {
+        let ws = MelonbooksScraper::new().unwrap();
+        let url = "https://www.melonbooks.co.jp/detail/detail.php?product_id=741212";
+        let product = ws.get_product("nana", url).unwrap().unwrap();
+        assert_eq!(HashSet::<String>::from_iter(product.artists), HashSet::from_iter(vec!["神野ろく".to_string(), "Code:774/nanasea".to_string()]));
     }
 }
