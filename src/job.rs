@@ -43,7 +43,7 @@ async fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result
             .filter(|u| db.is_product_unavailable(u).unwrap_or(false))
             .collect::<Vec<String>>();
         let mut products: Vec<Product> = vec![];
-        println!("[Search] Found {} total products, {} new, {} {}available again", total_count, new_urls.len(), old_urls.len(), if also_unavailable { "potentially " } else { "" });
+        println!("[Search] Found {} total products, {} new{}", total_count, new_urls.len(), if !also_unavailable { format!(", {} available again", old_urls.len()) } else { String::new() });
         for (pidx, url) in new_urls.iter().enumerate() {
             let product = ws.get_product(artist.as_str(), url.as_str())?;
             if product.artists.contains(artist) {
@@ -57,14 +57,16 @@ async fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result
             sleep(core::time::Duration::from_millis(500));
         }
         notification::notify_new_products(&products, artist).await?;
-        for (pidx, url) in old_urls.iter().enumerate() {
-            let product = ws.get_product(artist.as_str(), url.as_str())?;
-            if product.availability != Availability::NotAvailable {
-                println!("[Product] {}/{} Updating {} : {}", pidx+1, old_urls.len(), &product.url, &product.title);
-                db.update_availability(&product)?;
-                notification::notify_product_rerun(&product).await?;
+        if !also_unavailable {
+            for (pidx, url) in old_urls.iter().enumerate() {
+                let product = ws.get_product(artist.as_str(), url.as_str())?;
+                if product.availability != Availability::NotAvailable {
+                    println!("[Product] {}/{} Updating {} : {}", pidx+1, old_urls.len(), &product.url, &product.title);
+                    db.update_availability(&product)?;
+                    notification::notify_product_rerun(&product).await?;
+                }
+                sleep(core::time::Duration::from_millis(500));
             }
-            sleep(core::time::Duration::from_millis(500));
         }
         sleep(core::time::Duration::from_millis(500));
     }
