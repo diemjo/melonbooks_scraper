@@ -13,6 +13,10 @@
 </head>
 <body>
     <?php
+    $useragent = $_SERVER['HTTP_USER_AGENT'];
+    $iPhone = stripos($useragent, "iPhone");
+    $Android = stripos($useragent, "Android");
+    $is_phone = ($iPhone||$Android);
 
     $dbpath = __DIR__.DIRECTORY_SEPARATOR."db".DIRECTORY_SEPARATOR."melonbooks.db";
     $pdo = new PDO("sqlite:$dbpath");
@@ -107,7 +111,7 @@
       <?php
 	 if ($_GET['artist']) {
 	 $artist = $_GET['artist'];
-	 echo "showing products for ${artist}.";
+	 //echo "showing products for ${artist}.";
          $products_query = $pdo->prepare("SELECT url, title, artist, site, imgUrl, dateAdded, availability FROM products WHERE availability in ('Available', 'Preorder') AND artist = (:artist) ORDER BY dateAdded DESC, CAST(SUBSTR(url, INSTR(url, 'product_id=') + 11) AS INTEGER) DESC", [PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY]);
          $products_query->execute(['artist' => $artist]);
          } else {
@@ -116,27 +120,34 @@
          }
 	 $results = $products_query->fetchAll();
       
-         echo "<table style='table-layout: fixed; display:block'><tr style=''>";
-	 $cols = 3;
+         echo "<table class='main-table-grid'><tr>";
+         if (!$is_phone) {
+	     $cols = 3;
+         } else {
+	     $cols = 2;
+	 }
          //header
 	 for ($i = 0; $i < $cols; $i+=1) {
-             echo "<th style='width:" . (50/$cols) . "%'>Image</th>";
-             echo "<th style='width:" . (40/$cols) . "%'>Info</th>";
-             echo "<th style='width:" . (10/$cols) . "%'>Availability</th>";
+             echo "<th class='image-table-header' style='width:" . (50/$cols) . "%'>Product</th>";
+             echo "<th class='product-info-table-header' style='width:" . (50/$cols) . "%'>Info</th>";
+             //echo "<th style='width:" . (10/$cols) . "%'>Availability</th>";
          }
 	 echo "</tr>";
          //data  
 	 $ind = 0;
          foreach ($results as $row)  {
 	     if ($ind%$cols==0) {
-                 echo "<tr style='max-height=250px'>";
+                 echo "<tr class='grid-table-row'>";
 	     }
-             echo "<td style=''><img src='{$row[4]}&height=250' style='height:auto; max-width:100%'></td>";
-             echo "<td style=''>";
-             echo "<a href={$row[0]}>{$row[1]}</a>";
-             echo "<br>Artist: <a style='color:#11bb11'>{$row[2]}</a>";
-	     echo "<br>Date: {$row[5]}";
+             echo "<td class='image-table-cell'>";
+             echo "  <img src='{$row[4]}&height=250' class='product-image'>";
              echo "</td>";
+             echo "<td class='product-info-table-cell'>";
+             //echo "<img style='max-width:30px; height:auto' src='https://melonbooks.co.jp/apple-touch-icon.png'><br>";
+             echo "<a href={$row[0]}>{$row[1]}</a>";
+             echo "<br>Artist: <a class='product-artist-name'>{$row[2]}</a>";
+	     echo "<br>Date: {$row[5]}";
+             //echo "</td>";
              if ($row[6] == "Available") {
 	         $color = "#dd7722";
              } else if ($row[6] == "Preorder") {
@@ -146,7 +157,8 @@
              } else {
                  $color = "black";
              }
-             echo "<td style='color:{$color}'>{$row[6]}</td>";
+             echo "<br><br>Status: <a style='color:{$color}'>{$row[6]}</a>";
+	     echo "</td>";
              if ($ind%$cols==$cols-1) {
                  echo "</tr>";
 	     }

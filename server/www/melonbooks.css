@@ -1,6 +1,9 @@
 table, th, td {
     border: 1px solid black;
     border-collapse: collapse;
+}
+
+td, td {
     padding: 5px
 }
 
@@ -9,5 +12,40 @@ table {
 }
 
 img {
-    max-height: 250px
+    max-height: 250px;
+}
+
+.main-table-grid {
+    table-layout: fixed;
+    display:block;
+}
+
+.grid-table-row {
+    max-height: 250px;
+}
+
+.image-table-header {
+    border-right: 0.5px dashed;
+}
+
+.product-info-table-header {
+    border-left: none;
+}
+
+.image-table-cell {
+    border-right: 0.5px dashed;
+    text-align: center;
+}
+
+.product-info-table-cell {
+    border-left: none;
+}
+
+.product-image {
+    height: auto;
+    max-width: 100%;
+}
+
+.product-artist-name {
+    color: #11bb11;
 }
