@@ -104,6 +104,10 @@ async fn update_products_ws(ws: &dyn WebScraper, types: &Vec<Availability>) -> R
                 e @ Err(_) => { return e; }
             }
         }
+        if (idx+1)%64==0 {
+            println!("processed {} products, waiting 30s to prevent overloading the server", idx+1);
+            tokio::time::sleep(core::time::Duration::from_secs(30)).await;
+        }
     }
     Ok(())
 }
