@@ -6,13 +6,14 @@ use rusqlite::Error::FromSqlConversionFailure;
 use rusqlite::Row;
 use rusqlite::types::Type;
 use crate::common::error::{Error};
-use crate::model::Availability::{Available, NotAvailable, Preorder};
+use crate::model::Availability::{Available, NotAvailable, Preorder, Deleted};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Availability {
     Available,
     Preorder,
-    NotAvailable
+    NotAvailable,
+    Deleted,
 }
 
 impl fmt::Display for Availability {
@@ -29,6 +30,7 @@ impl FromStr for Availability {
             "Available" => Ok(Available),
             "Preorder" => Ok(Preorder),
             "NotAvailable" => Ok(NotAvailable),
+            "Deleted" => Ok(Deleted),
             _ => Err(Error::AvailabilityEnumError(s.into()))
         }
     }

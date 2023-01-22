@@ -1,4 +1,5 @@
 use std::thread::sleep;
+
 use crate::db::MelonDB;
 use crate::notification;
 use crate::web::melonbooks_scraper::MelonbooksScraper;
@@ -58,15 +59,17 @@ async fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result
         }
         notification::notify_new_products(&products, artist).await?;
         if !also_unavailable {
+            let mut products: Vec<Product> = vec![];
             for (pidx, url) in old_urls.iter().enumerate() {
                 let product = ws.get_product(artist.as_str(), url.as_str())?;
                 if product.availability != Availability::NotAvailable {
                     println!("[Product] {}/{} Updating {} : {}", pidx+1, old_urls.len(), &product.url, &product.title);
-                    db.update_availability(&product)?;
-                    notification::notify_product_rerun(&product).await?;
+                    db.update_availability(&product, &product.availability)?;
+                    products.push(product);
                 }
                 sleep(core::time::Duration::from_millis(500));
             }
+            notification::notify_product_reruns(&products, artist).await?;
         }
         sleep(core::time::Duration::from_millis(500));
     }
@@ -108,16 +111,24 @@ async fn update_products_ws(ws: &dyn WebScraper, types: &Vec<Availability>) -> R
 async fn update_single_product(ws: &dyn WebScraper, db: &mut MelonDB, product: &Product) -> Result<()> {
     let new_product = match ws.get_product(&product.associated_artist, &product.url) {
         Ok(new_product) => new_product,
-        Err(e) => {
-            println!("warning, error occurred: {}\nRetrying once", e);
-            ws.get_product(&product.associated_artist, &product.url)?
-        }
+        Err(crate::common::error::Error::WebError(e)) => {
+            if e.is_timeout() {
+                println!("warning, error occurred: {}\nRetrying once", e);
+                ws.get_product(&product.associated_artist, &product.url)?
+            } else if e.status().unwrap_or(reqwest::StatusCode::OK) == 404 {
+                db.update_availability(&product, &Availability::Deleted)?;
+                return Ok(());
+            } else {
+                return Err(crate::common::error::Error::WebError(e));
+            }
+        },
+        Err(e) => { return Err(e); }
     };
-    db.update_availability(&new_product)?;
-    // this cannot not happen when updating only available/preorder products
+    db.update_availability(&new_product, &new_product.availability)?;
+    /* this cannot not happen when updating only available/preorder products
     if vec![Availability::Available, Availability::Preorder].contains(&new_product.availability) && product.availability==Availability::NotAvailable {
         notification::notify_product_rerun(&new_product).await?;
-    }
+    }*/
     Ok(())
 }
 

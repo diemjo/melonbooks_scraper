@@ -83,7 +83,11 @@ impl MelonDB {
             ":url": url,
             ":availability": Availability::NotAvailable.to_string()
         })?;
-        Ok(res)
+        let res2 = stmt.exists(named_params! {
+            ":url": url,
+            ":availability": Availability::Deleted.to_string()
+        })?;
+        Ok(res || res2)
     }
 
     pub(crate) fn get_products(&self, site: &str) -> Result<Vec<Product>> {
@@ -137,11 +141,11 @@ impl MelonDB {
         Ok(())*/
     }
 
-    pub(crate) fn update_availability(&mut self, product: &Product) -> Result<()> {
+    pub(crate) fn update_availability(&mut self, product: &Product, availability: &Availability) -> Result<()> {
         let mut stmt = self.conn.prepare(UPDATE_PRODUCT_AVAILABILITY)?;
         stmt.execute(named_params! {
              ":url": product.url,
-            ":availability": product.availability.to_string()
+            ":availability": availability.to_string()
         })?;
         Ok(())
         /*self.conn.exec_drop(UPDATE_PRODUCT, params! {
@@ -274,7 +278,7 @@ mod test {
         db.insert_artists(&artists, melonbooks().as_str()).unwrap();
         let products = vec![prod1(), prod2()];
         db.store_products(&products, melonbooks().as_str()).unwrap();
-        db.update_availability(&prod1_v2()).unwrap();
+        db.update_availability(&prod1_v2(), &prod1_v2().availability).unwrap();
         let res = db.get_products(melonbooks().as_str()).unwrap();
         assert_eq_unsorted(vec![prod1_v2(), prod2()], res);
         Ok(())
