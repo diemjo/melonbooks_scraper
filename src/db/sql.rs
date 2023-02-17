@@ -33,6 +33,16 @@ pub const CREATE_TABLES : &str =
         artist VARCHAR(64) NOT NULL,
         PRIMARY KEY (url, artist)
     );
+
+    CREATE TABLE IF NOT EXISTS title_skip_sequences (
+        artist VARCHAR(64) NOT NULL,
+        site VARCHAR(32) NOT NULL,
+        sequence VARCHAR(256) NOT NULL,
+        PRIMARY KEY (artist, site, sequence),
+        CONSTRAINT fk_artist_name
+            FOREIGN KEY (artist, site) REFERENCES artists (name, site)
+            ON DELETE CASCADE
+    );
 ";
 
 #[cfg(feature = "notification")]
@@ -117,3 +127,14 @@ pub const REMOVE_SKIP_PRODUCTS: &str =
         FROM skip_products
         WHERE artist = (:artist)
     )";
+
+#[cfg(test)]
+pub const INSERT_TITLE_SKIP_SEQUENCE: &str =
+    r"INSERT INTO title_skip_sequences(artist, site, sequence)
+    VALUES (:artist, :site, :sequence)";
+
+pub const SELECT_TITLE_CONTAINS_SKIP_SEQUENCES: &str =
+    r"SELECT 1 FROM title_skip_sequences
+    WHERE artist = (:artist)
+    AND site = (:site)
+    AND (:title) like '%' || sequence || '%'";

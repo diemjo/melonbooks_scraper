@@ -191,6 +191,27 @@ impl MelonDB {
         })?;
         Ok(res)
     }
+
+    #[cfg(test)]
+    pub(crate) fn title_skip_sequence(&mut self, artist: &str, site: &str, sequence: &str) -> Result<()> {
+        let mut stmt = self.conn.prepare(INSERT_TITLE_SKIP_SEQUENCE)?;
+        stmt.insert(named_params! {
+            ":artist": artist,
+            ":site": site,
+            ":sequence": sequence
+        })?;
+        Ok(())
+    }
+
+    pub(crate) fn title_contains_skip_sequence(&self, artist: &str, site: &str, title: &str) -> Result<bool> {
+        let mut stmt = self.conn.prepare(SELECT_TITLE_CONTAINS_SKIP_SEQUENCES)?;
+        let res = stmt.exists(named_params! {
+            ":artist": artist,
+            ":site": site,
+            ":title": title
+        })?;
+        Ok(res)
+    }
 }
 
 fn create_tables(conn : &mut Connection) -> Result<()> {
@@ -284,6 +305,23 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn test_title_skip_sequence() -> Result<()> {
+        let mut db = MelonDB::new_local().unwrap();
+        remove_products(&mut db);
+        let artists = vec![ mafuyu(), kantoku() ];
+        remove_artists(&mut db);
+        db.insert_artists(&artists, melonbooks().as_str()).unwrap();
+        db.title_skip_sequence(&mafuyu(), &melonbooks(), "leo")?;
+        db.title_skip_sequence(&kantoku(), &melonbooks(), "pii-chan")?;
+        let products = vec![prod1(), prod2(), prod3(), prod4()];
+        let skipped_products = products.iter()
+            .filter(|p| db.title_contains_skip_sequence(&p.associated_artist, &melonbooks(), &p.title).unwrap())
+            .collect::<Vec<&Product>>();
+        assert_eq_unsorted(vec![&prod2(), &prod4()], skipped_products);
+        Ok(())
+    }
+
     fn mafuyu() -> String {
         "mafuyu".to_string()
     }
@@ -323,7 +361,7 @@ mod test {
     fn prod2() -> Product {
         Product::new(
             "url456".to_string(),
-            "title2".to_string(),
+            "mafuyu leo badge".to_string(),
             mafuyu(),
             vec![mafuyu()],
             "url44".to_string(),
@@ -347,7 +385,7 @@ mod test {
     fn prod4() -> Product {
         Product::new(
             "url101112".to_string(),
-            "title55".to_string(),
+            "sasaki to pii-chan e4".to_string(),
             kantoku(),
             vec![kantoku()],
             "url007".to_string(),

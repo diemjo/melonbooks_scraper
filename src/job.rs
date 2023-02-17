@@ -65,7 +65,9 @@ async fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result
                 if product.availability != Availability::NotAvailable {
                     println!("[Product] {}/{} Updating {} : {}", pidx+1, old_urls.len(), &product.url, &product.title);
                     db.update_availability(&product, &product.availability)?;
-                    products.push(product);
+                    if !db.title_contains_skip_sequence(&product.associated_artist, site, &product.title)? {
+                        products.push(product);
+                    }
                 }
                 sleep(core::time::Duration::from_millis(500));
             }
