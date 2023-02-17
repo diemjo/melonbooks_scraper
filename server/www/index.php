@@ -44,7 +44,7 @@
     }
 
     reset_artist_names();
-
+    
     switch($_POST["submit"]) {
         case 'Add Artist': {
             if ($_POST["add_artist"] && $_POST["site"]) {
@@ -68,6 +68,29 @@
                 }
                 reset_artist_names();
             }
+            break;
+        }
+        case 'Add Title Skip Sequence': {
+            if ($_GET["artist"] && $_POST["skip_sequence"]) {
+                $artist = trim($_GET["artist"]);
+                $skip_sequence = trim($_POST["skip_sequence"]);
+                $insert_skip_sequence_stmt = $pdo->prepare("INSERT INTO title_skip_sequences (artist, site, sequence) VALUES (?, ?, ?)");
+                if ($insert_skip_sequence_stmt->execute([$artist, "melonbooks", $skip_sequence])) {
+                    #echo "inserted '$skip_sequence' for artist '$artist' and site 'melonbooks'";
+                }
+            }
+            break;
+        }
+        case 'Remove Title Skip Sequence': {
+            if ($_GET["artist"] && $_POST["skip_sequence"]) {
+                $artist = trim($_GET["artist"]);
+                $skip_sequence = trim($_POST["skip_sequence"]);
+                $remove_skip_sequence_stmt = $pdo->prepare("DELETE FROM title_skip_sequences WHERE artist = (?) AND site = (?) AND sequence = (?)");
+                if ($remove_skip_sequence_stmt->execute([$artist, "melonbooks", $skip_sequence])) {
+                    #echo "removed '$skip_sequence' from artist '$artist' and site 'melonbooks'";
+                }
+            }
+            break;
         }
         default: {}
     }
@@ -95,11 +118,33 @@
         }
     }
     echo "</select>";
-    if ($_GET['artist']) {
-        echo "<form action='/melonbooks/index.php' id='remove_artist' method='post'>";
-        echo "  <input type='submit' name='submit' value='Remove Artist'>";
-        echo "</form>";
-    }
+    if ($_GET['artist']) :
+       $artist = $_GET['artist'];
+       $skip_sequences_query = $pdo->prepare("SELECT sequence FROM title_skip_sequences WHERE artist = (:artist) AND site = (:site)", [PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY]);
+       $skip_sequences_query->execute(['artist' => $artist, 'site' => "melonbooks"]);
+       $skip_sequences = $skip_sequences_query->fetchAll();
+       #echo count($skip_sequences);
+       ?>
+        <form action="/melonbooks/index.php" id='remove_artist' method='post'>
+          <input type='submit' name='submit' value='Remove Artist'>
+        </form>
+        <form action='/melonbooks/index.php?artist=<?=$artist?>' id='add_skip_sequence' method='post'>
+	  <label for='skip_sequence'>Skip Rerun notifiction for titles containing:</label>
+	  <input autocorrect='off' autocomplete='off' name='skip_sequence' spellcheck='false' maxlength='256'>
+	  <input type='submit' name='submit' value='Add Title Skip Sequence'>
+	</form>
+	  <?php endif;
+	if (count($skip_sequences)>0) {
+	  echo "<form action=/melonbooks/index.php?artist=${artist} id='remove_skip_sequence' method='post'>";
+	  echo "<select name='skip_sequence' id='sequence_select'>";
+	     foreach ($skip_sequences as $sequence_row) {
+		echo "<option value='${sequence_row[0]}'>$sequence_row[0]</option>";
+	     }
+
+	  echo "</select>";
+	  echo "<input type='submit' name='submit' value='Remove Title Skip Sequence'>";
+	  echo "</form>";
+	  }
 	#echo "<a href='/melonbooks/index.php'>All</a></br>";
     #foreach ($artists as $artist) {
     #   echo "<a href='/melonbooks/index.php?artist=${artist}'>$artist</a></br>";
