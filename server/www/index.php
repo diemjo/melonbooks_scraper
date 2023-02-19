@@ -129,7 +129,7 @@
           <input type='submit' name='submit' value='Remove Artist'>
         </form>
         <form action='/melonbooks/index.php?artist=<?=$artist?>' id='add_skip_sequence' method='post'>
-	  <label for='skip_sequence'>Skip Rerun notifiction for titles containing:</label>
+	  <label for='skip_sequence'>Skip all notifiction for titles containing:</label>
 	  <input autocorrect='off' autocomplete='off' name='skip_sequence' spellcheck='false' maxlength='256'>
 	  <input type='submit' name='submit' value='Add Title Skip Sequence'>
 	</form>
