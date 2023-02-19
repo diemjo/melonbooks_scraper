@@ -50,7 +50,11 @@ async fn load_products_ws(ws: &dyn WebScraper, also_unavailable: bool) -> Result
             if product.artists.contains(artist) {
                 println!("[Product] {}/{} Adding {} : {}", pidx+1, new_urls.len(), &product.url, &product.title);
                 db.store_products(&vec![&product], site)?;
-                products.push(product);
+                if db.title_contains_skip_sequence(&product.associated_artist, site, &product.title)? {
+                    println!("[Product] Skipping Notification for {} : {} (title contains a skip sequence)", &product.url, &product.title);
+                } else {
+                    products.push(product);
+                }
             } else {
                 println!("[Product] {}/{} Skipping {}, artist \"{}\" not in {:?}", pidx+1, new_urls.len(), &url, artist, product.artists);
                 db.skip_product(product)?;
